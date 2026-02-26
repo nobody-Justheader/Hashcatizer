@@ -43,6 +43,24 @@ STANDALONE_CONVERTERS = {
     'telegram': 'converters.telegram2hashcat',
     'signal': 'converters.signal2hashcat',
     'mozilla': 'converters.mozilla2hashcat',
+    # New converters — completing 100% JtR coverage
+    '7z': 'converters.sevenz2hashcat',
+    'pgpsda': 'converters.pgpsda2hashcat',
+    'pgpdisk': 'converters.pgpdisk2hashcat',
+    'pgpwde': 'converters.pgpwde2hashcat',
+    'zed': 'converters.zed2hashcat',
+    'mac': 'converters.mac2hashcat',
+    'lion': 'converters.lion2hashcat',
+    'pcap': 'converters.pcap2hashcat',
+    'netntlm': 'converters.netntlm2hashcat',
+    'cisco': 'converters.cisco2hashcat',
+    'sap': 'converters.sap2hashcat',
+    'ldif': 'converters.ldif2hashcat',
+    'atmail': 'converters.atmail2hashcat',
+    'mongodb': 'converters.mongodb2hashcat',
+    'network': 'converters.network2hashcat',
+    'ios': 'converters.ios2hashcat',
+    'vdi': 'converters.vdi2hashcat',
 }
 
 # Batch converters (name -> module.function_name)
