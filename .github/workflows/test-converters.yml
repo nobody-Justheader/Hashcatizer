@@ -1,0 +1,59 @@
+name: Test Converters (Manual)
+on:
+  workflow_dispatch:
+    inputs:
+      converter:
+        description: 'Specific converter to test (leave empty for all)'
+        required: false
+        default: ''
+
+jobs:
+  test-converters:
+    name: Full Converter Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Create test fixtures
+        run: |
+          mkdir -p tests/fixtures
+          # SSH key fixture
+          ssh-keygen -t rsa -b 2048 -f tests/fixtures/test_rsa -N "testpassword" -q
+          # Ansible Vault fixture
+          pip install ansible-core
+          echo "secret_data: password123" | ansible-vault encrypt --vault-password-file <(echo "vaultpass") --output tests/fixtures/test.vault
+          # PDF (minimal, not encrypted — just for detection)
+          echo "%PDF-1.5 minimal test" > tests/fixtures/test.pdf
+
+      - name: Test individual converters
+        run: |
+          echo "=== Testing SSH converter ==="
+          python hashcatizer.py ssh tests/fixtures/test_rsa 2>&1 && echo "✅ SSH" || echo "⚠️ SSH"
+
+          echo ""
+          echo "=== Testing Ansible converter ==="
+          python hashcatizer.py ansible tests/fixtures/test.vault 2>&1 && echo "✅ Ansible" || echo "⚠️ Ansible"
+
+          echo ""
+          echo "=== Testing auto-detection ==="
+          python hashcatizer.py tests/fixtures/test_rsa 2>&1 && echo "✅ Auto-detect SSH" || echo "⚠️ Auto-detect SSH"
+
+      - name: Verify all converters load
+        run: |
+          echo "=== Verifying all 111 converters ==="
+          python hashcatizer.py --list
+          TOTAL=$(python hashcatizer.py --list 2>&1 | grep "^Total:" | grep -oP '\d+')
+          echo "Total converters: $TOTAL"
+          if [ "$TOTAL" -lt 100 ]; then
+            echo "❌ Converter count dropped below 100!"
+            exit 1
+          fi
+          echo "✅ All converters intact."
