@@ -3,16 +3,18 @@
 hashcatizer.py — Unified CLI dispatcher for all Hashcatizer converters.
 
 Usage:
-    python hashcatizer.py <converter> [options] <file(s)>
-    python hashcatizer.py --list
-    python hashcatizer.py <converter> --mode-info
+    python hashcatizer.py <file>                  # Auto-detect and convert
+    python hashcatizer.py <hash_string>           # Identify hash type + mode
+    python hashcatizer.py <converter> <file(s)>   # Explicit converter
+    python hashcatizer.py --list                  # List all converters
+    python hashcatizer.py <converter> --mode-info # Show hashcat modes
 
 Examples:
-    python hashcatizer.py ssh id_rsa
-    python hashcatizer.py pdf document.pdf
-    python hashcatizer.py ethereum keystore.json
-    python hashcatizer.py office document.docx
-    python hashcatizer.py bitcoin wallet.dat
+    python hashcatizer.py id_rsa                  # Auto-detects SSH key
+    python hashcatizer.py document.pdf            # Auto-detects PDF
+    python hashcatizer.py '$2a$10$...'            # Identifies as bcrypt -m 3200
+    python hashcatizer.py ssh id_rsa              # Explicit SSH converter
+    python hashcatizer.py ethereum keystore.json  # Explicit Ethereum converter
 """
 
 import importlib
@@ -118,27 +120,70 @@ def list_converters():
     print("=" * 60)
 
 
-def run_standalone(name, args):
-    """Run a standalone converter module."""
-    module_name = STANDALONE_CONVERTERS[name]
-    # Set sys.argv for the module's argparse
-    sys.argv = [name] + args
-    try:
-        mod = importlib.import_module(module_name)
-        mod.main()
-    except ImportError as e:
-        sys.stderr.write("Error: Failed to import %s: %s\n" % (module_name, e))
+def run_converter(name, args):
+    """Run a converter by name with the given args."""
+    if name in STANDALONE_CONVERTERS:
+        module_name = STANDALONE_CONVERTERS[name]
+        sys.argv = [name] + args
+        try:
+            mod = importlib.import_module(module_name)
+            mod.main()
+        except ImportError as e:
+            sys.stderr.write("Error: Failed to import %s: %s\n" % (module_name, e))
+            sys.exit(1)
+    elif name in BATCH_CONVERTERS:
+        func = BATCH_CONVERTERS[name]
+        for filename in args:
+            func(filename)
+    elif name in EXTENDED_CONVERTERS:
+        func = EXTENDED_CONVERTERS[name]
+        for filename in args:
+            func(filename)
+    else:
+        sys.stderr.write("Error: Unknown converter '%s'\n" % name)
         sys.exit(1)
 
 
-def run_batch(name, args, converter_dict):
-    """Run a batch converter function."""
-    func = converter_dict[name]
-    if not args:
-        sys.stderr.write("Error: No input files specified\n")
-        sys.exit(1)
-    for filename in args:
-        func(filename)
+def auto_detect_and_run(files):
+    """Auto-detect file types and run appropriate converters."""
+    from lib.detect import detect_file_type
+
+    for filename in files:
+        converter = detect_file_type(filename)
+        if converter:
+            sys.stderr.write("[*] Detected: %s → using '%s' converter\n" % (
+                os.path.basename(filename), converter))
+            run_converter(converter, [filename])
+        else:
+            sys.stderr.write("[!] Could not auto-detect type of '%s'\n" % filename)
+            sys.stderr.write("    Specify converter explicitly: hashcatizer <converter> %s\n" % filename)
+            sys.stderr.write("    Run 'hashcatizer --list' to see all converters.\n")
+
+
+def identify_hash_mode(hash_string):
+    """Identify a hash string and print its type + hashcat mode."""
+    from lib.detect import identify_hash
+
+    matches = identify_hash(hash_string)
+    if matches:
+        print("=" * 60)
+        print("Hash Identified!")
+        print("=" * 60)
+        for name, mode in matches:
+            if mode > 0:
+                print("  %-40s hashcat -m %d" % (name, mode))
+            else:
+                print("  %-40s (mode varies)" % name)
+        print()
+        # Print recommended command
+        best = matches[0]
+        if best[1] > 0:
+            print("Recommended:")
+            print("  hashcat -m %d '%s' wordlist.txt" % (best[1], hash_string[:60] + ('...' if len(hash_string) > 60 else '')))
+        print("=" * 60)
+    else:
+        print("[!] Hash format not recognized: %s" % hash_string[:80])
+        print("    Try: https://hashcat.net/wiki/doku.php?id=example_hashes")
 
 
 def main():
@@ -158,35 +203,41 @@ def main():
         list_converters()
         sys.exit(0)
 
-    converter_name = sys.argv[1]
+    arg1 = sys.argv[1]
     remaining_args = sys.argv[2:]
-
-    # Try standalone first
-    if converter_name in STANDALONE_CONVERTERS:
-        run_standalone(converter_name, remaining_args)
-        return
-
-    # Try batch converters
-    if converter_name in BATCH_CONVERTERS:
-        run_batch(converter_name, remaining_args, BATCH_CONVERTERS)
-        return
-
-    # Try extended converters
-    if converter_name in EXTENDED_CONVERTERS:
-        run_batch(converter_name, remaining_args, EXTENDED_CONVERTERS)
-        return
-
-    # Not found
-    sys.stderr.write("Error: Unknown converter '%s'\n" % converter_name)
-    sys.stderr.write("Use --list to see all available converters.\n")
-
-    # Suggest similar names
     all_names = get_all_converters()
-    suggestions = [n for n in all_names if converter_name.lower() in n.lower()]
-    if suggestions:
-        sys.stderr.write("Did you mean: %s\n" % ', '.join(suggestions))
 
-    sys.exit(1)
+    # --- Case 1: Explicit converter name ---
+    if arg1 in all_names:
+        if not remaining_args:
+            sys.stderr.write("Error: No input files specified\n")
+            sys.exit(1)
+        run_converter(arg1, remaining_args)
+        return
+
+    # --- Case 2: Hash string identification ---
+    from lib.detect import is_hash_string
+    if is_hash_string(arg1):
+        identify_hash_mode(arg1)
+        return
+
+    # --- Case 3: Auto-detect file(s) ---
+    files = [arg1] + remaining_args
+    existing_files = [f for f in files if os.path.exists(f)]
+    if existing_files:
+        auto_detect_and_run(existing_files)
+        # Report any non-existent args
+        missing = [f for f in files if not os.path.exists(f)]
+        for m in missing:
+            # Maybe it's a hash string mixed with files
+            if is_hash_string(m):
+                identify_hash_mode(m)
+            else:
+                sys.stderr.write("[!] File not found: %s\n" % m)
+        return
+
+    # --- Case 4: Not a file, not a known converter — try hash identification ---
+    identify_hash_mode(arg1)
 
 
 if __name__ == "__main__":
