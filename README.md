@@ -1,5 +1,7 @@
 # Hashcatizer 🔓
 
+[![CodeRabbit Pull Request Reviews](https://img.shields.io/coderabbit/prs/github/nobody-Justheader/Hashcatizer?utm_source=oss&utm_medium=github&utm_campaign=nobody-Justheader%2FHashcatizer&labelColor=171717&color=FF570A&link=https%3A%2F%2Fcoderabbit.ai&label=CodeRabbit+Reviews)](https://coderabbit.ai)
+
 **File-to-Hashcat Converter Suite** — Extract hashes from encrypted files and output them in [hashcat](https://hashcat.net/hashcat/)-compatible format.
 
 Inspired by the [`*2john` scripts](https://github.com/openwall/john/tree/bleeding-jumbo/run) from [John the Ripper](https://github.com/openwall/john) (openwall/john). Full credits in [CREDITS.md](CREDITS.md).
