@@ -120,32 +120,108 @@ def list_converters():
     print("=" * 60)
 
 
-def run_converter(name, args):
-    """Run a converter by name with the given args."""
-    if name in STANDALONE_CONVERTERS:
-        module_name = STANDALONE_CONVERTERS[name]
-        sys.argv = [name] + args
-        try:
-            mod = importlib.import_module(module_name)
-            mod.main()
-        except ImportError as e:
-            sys.stderr.write("Error: Failed to import %s: %s\n" % (module_name, e))
+def run_converter(name, args, capture=False):
+    """Run a converter by name with the given args.
+
+    If capture=True, intercepts stdout and returns the output lines.
+    """
+    if capture:
+        import io
+        old_stdout = sys.stdout
+        sys.stdout = buffer = io.StringIO()
+
+    try:
+        if name in STANDALONE_CONVERTERS:
+            module_name = STANDALONE_CONVERTERS[name]
+            sys.argv = [name] + args
+            try:
+                mod = importlib.import_module(module_name)
+                mod.main()
+            except ImportError as e:
+                sys.stderr.write("Error: Failed to import %s: %s\n" % (module_name, e))
+                if capture:
+                    sys.stdout = old_stdout
+                sys.exit(1)
+        elif name in BATCH_CONVERTERS:
+            func = BATCH_CONVERTERS[name]
+            for filename in args:
+                func(filename)
+        elif name in EXTENDED_CONVERTERS:
+            func = EXTENDED_CONVERTERS[name]
+            for filename in args:
+                func(filename)
+        else:
+            sys.stderr.write("Error: Unknown converter '%s'\n" % name)
+            if capture:
+                sys.stdout = old_stdout
             sys.exit(1)
-    elif name in BATCH_CONVERTERS:
-        func = BATCH_CONVERTERS[name]
-        for filename in args:
-            func(filename)
-    elif name in EXTENDED_CONVERTERS:
-        func = EXTENDED_CONVERTERS[name]
-        for filename in args:
-            func(filename)
+    finally:
+        if capture:
+            sys.stdout = old_stdout
+
+    if capture:
+        return buffer.getvalue().strip().split('\n')
+    return []
+
+
+def _get_mode_for_converter(name):
+    """Try to extract the primary hashcat mode from a converter module."""
+    try:
+        if name in STANDALONE_CONVERTERS:
+            mod = importlib.import_module(STANDALONE_CONVERTERS[name])
+            modes = getattr(mod, 'HASHCAT_MODES', {})
+            if modes:
+                return list(modes.keys())[0], list(modes.values())[0]
+    except Exception:
+        pass
+    return None, None
+
+
+def _show_crack_command(converter_name, hashes, filename):
+    """Print the extracted hashes and a sample hashcat command to crack them."""
+    from lib.detect import identify_hash
+
+    if not hashes or (len(hashes) == 1 and not hashes[0]):
+        sys.stderr.write("[!] No hashes extracted from '%s'\n" % filename)
+        return
+
+    # Print hashes
+    print()
+    sys.stderr.write("[+] Extracted %d hash(es):\n" % len(hashes))
+    for h in hashes:
+        print(h)
+
+    # Determine hashcat mode — try hash identification first, then module metadata
+    mode = None
+    mode_name = None
+    first_hash = hashes[0]
+
+    matches = identify_hash(first_hash)
+    if matches:
+        mode_name, mode = matches[0]
+
+    if not mode:
+        mode, mode_name = _get_mode_for_converter(converter_name)
+
+    # Show recommended command
+    print()
+    sys.stderr.write("=" * 60 + "\n")
+    if mode:
+        hashfile = os.path.splitext(os.path.basename(filename))[0] + ".hash"
+        sys.stderr.write("  Type:    %s\n" % (mode_name or converter_name))
+        sys.stderr.write("  Mode:    -m %d\n" % mode)
+        sys.stderr.write("\n")
+        sys.stderr.write("  Save:    hashcatizer %s > %s\n" % (filename, hashfile))
+        sys.stderr.write("  Crack:   hashcat -m %d %s wordlist.txt\n" % (mode, hashfile))
     else:
-        sys.stderr.write("Error: Unknown converter '%s'\n" % name)
-        sys.exit(1)
+        sys.stderr.write("  Type:    %s\n" % converter_name)
+        sys.stderr.write("  Crack:   hashcat -m <MODE> <hashfile> wordlist.txt\n")
+        sys.stderr.write("  Modes:   https://hashcat.net/wiki/doku.php?id=example_hashes\n")
+    sys.stderr.write("=" * 60 + "\n")
 
 
 def auto_detect_and_run(files):
-    """Auto-detect file types and run appropriate converters."""
+    """Auto-detect file types, convert, and show hashcat crack commands."""
     from lib.detect import detect_file_type
 
     for filename in files:
@@ -153,7 +229,8 @@ def auto_detect_and_run(files):
         if converter:
             sys.stderr.write("[*] Detected: %s → using '%s' converter\n" % (
                 os.path.basename(filename), converter))
-            run_converter(converter, [filename])
+            hashes = run_converter(converter, [filename], capture=True)
+            _show_crack_command(converter, hashes, filename)
         else:
             sys.stderr.write("[!] Could not auto-detect type of '%s'\n" % filename)
             sys.stderr.write("    Specify converter explicitly: hashcatizer <converter> %s\n" % filename)
