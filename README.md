@@ -126,5 +126,6 @@ MIT License — see [LICENSE](LICENSE).
 
 ## Credits
 
-This project is directly inspired by the `*2john` scripts from [openwall/john](https://github.com/openwall/john).
+This project is directly inspired by the `*2john` scripts from [openwall/john](https://github.com/openwall/john),
+and built to complement [hashcat](https://github.com/hashcat/hashcat) — the world's fastest password recovery tool by **Jens "atom" Steube**.
 See [CREDITS.md](CREDITS.md) for full attribution.

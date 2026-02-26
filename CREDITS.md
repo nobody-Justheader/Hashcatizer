@@ -29,9 +29,13 @@ reference implementations for Hashcatizer's extraction logic:
   The `run/` directory contains 80+ converter scripts under permissive licenses.
   Redistribution and use in source and binary forms, with or without modification, are permitted.
 
-- **[hashcat/hashcat](https://github.com/hashcat/hashcat)** — World's fastest and most
-  advanced password recovery utility. Hash format specifications and mode numbers are
-  referenced from hashcat's documentation and example hashes.
+- **[hashcat/hashcat](https://github.com/hashcat/hashcat)** — The world's fastest and most
+  advanced password recovery utility, created by **Jens "atom" Steube** and the hashcat team.
+  Hashcatizer exists to complement hashcat by converting encrypted files into hashcat-ready
+  hash format. All mode numbers, hash format specifications, and example hashes referenced in
+  this project come from hashcat's excellent documentation. Without hashcat, this project would
+  have no purpose. Thank you to the entire hashcat community for building and maintaining such
+  an incredible tool.
 
 - **[0x6470/bitwarden2hashcat](https://github.com/0x6470/bitwarden2hashcat)** — Bitwarden
   hash extraction for hashcat.
