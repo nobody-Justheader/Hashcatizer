@@ -20,14 +20,17 @@ jobs:
             target: x86_64-unknown-linux-musl
             binary: hashcatizer
             archive: hashcatizer-linux-x86_64.tar.gz
-          - os: macos-latest
+            cc: musl-gcc
+          - os: macos-13
             target: x86_64-apple-darwin
             binary: hashcatizer
             archive: hashcatizer-macos-x86_64.tar.gz
+            cc: ""
           - os: windows-latest
             target: x86_64-pc-windows-msvc
             binary: hashcatizer.exe
             archive: hashcatizer-windows-x86_64.zip
+            cc: ""
 
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +43,10 @@ jobs:
       - name: Install musl tools (Linux)
         if: matrix.os == 'ubuntu-latest'
         run: sudo apt-get install -y musl-tools
+
+      - name: Set C compiler for musl (Linux)
+        if: matrix.cc != ''
+        run: echo "CC=${{ matrix.cc }}" >> $GITHUB_ENV
 
       - name: Cache cargo
         uses: actions/cache@v4
