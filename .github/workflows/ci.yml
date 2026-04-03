@@ -21,10 +21,10 @@ jobs:
             binary: hashcatizer
             archive: hashcatizer-linux-x86_64.tar.gz
             cc: musl-gcc
-          - os: macos-13
-            target: x86_64-apple-darwin
+          - os: macos-15
+            target: aarch64-apple-darwin
             binary: hashcatizer
-            archive: hashcatizer-macos-x86_64.tar.gz
+            archive: hashcatizer-macos-aarch64.tar.gz
             cc: ""
           - os: windows-latest
             target: x86_64-pc-windows-msvc
