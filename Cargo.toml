@@ -1,6 +1,6 @@
 [package]
 name = "hashcatizer"
-version = "2.0.0"
+version = "1.0.0"
 edition = "2021"
 description = "Blazing-fast hashcatizer — converts encrypted files to hashcat-compatible format"
 authors = ["Hashcatizer Contributors"]
