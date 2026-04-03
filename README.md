@@ -29,7 +29,11 @@ Inspired by the [`*2john` scripts](https://github.com/openwall/john/tree/bleedin
 Download the latest release for your platform from the [Releases page](../../releases).
 
 ```bash
-# Linux (musl static binary)
+# Debian / Ubuntu / Kali (recommended)
+curl -LO https://github.com/nobody-Justheader/Hashcatizer/releases/latest/download/hashcatizer-linux-x86_64.deb
+sudo dpkg -i hashcatizer-linux-x86_64.deb
+
+# Linux (musl static tarball)
 curl -Lo hashcatizer-linux-x86_64.tar.gz https://github.com/nobody-Justheader/Hashcatizer/releases/latest/download/hashcatizer-linux-x86_64.tar.gz
 tar -xzf hashcatizer-linux-x86_64.tar.gz
 chmod +x hashcatizer

@@ -80,6 +80,20 @@ jobs:
           Write-Host "Converters listed: $count"
           if ($count -lt 80) { Write-Error "Converter count too low"; exit 1 }
 
+      - name: Build .deb package (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cargo install cargo-deb --locked
+          cargo deb --no-build --target ${{ matrix.target }}
+          cp target/${{ matrix.target }}/debian/hashcatizer_*.deb hashcatizer-linux-x86_64.deb
+
+      - name: Upload .deb artifact
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: hashcatizer-linux-x86_64.deb
+          path: hashcatizer-linux-x86_64.deb
+
       - name: Package binary (Unix)
         if: matrix.os != 'windows-latest'
         run: tar -czf ${{ matrix.archive }} -C target/${{ matrix.target }}/release ${{ matrix.binary }}
@@ -119,12 +133,16 @@ jobs:
           body: |
             ## Hashcatizer ${{ github.ref_name }}
 
-            Pre-built static binaries for Linux (musl), macOS, and Windows x86_64.
+            Pre-built static binaries for Linux (musl), macOS, and Windows x86_64. Also includes a `.deb` for Debian/Ubuntu/Kali.
 
             ### Quick start
 
             ```bash
-            # Linux
+            # Debian / Ubuntu / Kali (recommended)
+            curl -LO https://github.com/${{ github.repository }}/releases/download/${{ github.ref_name }}/hashcatizer-linux-x86_64.deb
+            sudo dpkg -i hashcatizer-linux-x86_64.deb
+
+            # Linux (tarball)
             tar -xzf hashcatizer-linux-x86_64.tar.gz
             chmod +x hashcatizer && sudo mv hashcatizer /usr/local/bin/
 
