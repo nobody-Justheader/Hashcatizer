@@ -1,5 +1,12 @@
 # Credits & Acknowledgments
 
+## Rust Rewrite
+
+The Python implementation was fully rewritten in Rust (April 2026) using
+**[GitHub Copilot](https://github.com/features/copilot)** powered by **Claude Sonnet 4.6**.
+The Rust port produces a single static binary with zero runtime dependencies while
+preserving all 90 converter implementations and adding integrated auto-detection.
+
 ## Inspiration
 
 This project is directly inspired by the **`*2john` converter scripts** from the

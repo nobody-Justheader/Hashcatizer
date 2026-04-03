@@ -1,1 +1,0 @@
-"""Hashcatizer converters package."""

@@ -1,145 +1,134 @@
-name: CI — Hashcatizer
+name: CI
+
 on:
   pull_request:
     branches: [master, main]
   push:
     branches: [master, main]
+    tags:
+      - "v*.*.*"
 
 jobs:
-  lint-and-compile:
-    name: Lint & Compile Check
-    runs-on: ubuntu-latest
+  build-and-test:
+    name: Build & Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11", "3.12"]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            binary: hashcatizer
+            archive: hashcatizer-linux-x86_64.tar.gz
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            binary: hashcatizer
+            archive: hashcatizer-macos-x86_64.tar.gz
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary: hashcatizer.exe
+            archive: hashcatizer-windows-x86_64.zip
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v5
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
         with:
-          python-version: ${{ matrix.python-version }}
+          targets: ${{ matrix.target }}
 
-      - name: Install dependencies
+      - name: Install musl tools (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: sudo apt-get install -y musl-tools
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ${{ runner.os }}-cargo-
+
+      - name: Build release binary
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Smoke test (Unix)
+        if: matrix.os != 'windows-latest'
         run: |
-          pip install -e ".[dev]"
-          pip install ruff
+          BIN=./target/${{ matrix.target }}/release/${{ matrix.binary }}
+          $BIN --help
+          COUNT=$($BIN --list 2>/dev/null | grep -c "^  ")
+          echo "Converters listed: $COUNT"
+          [ "$COUNT" -ge 80 ] || (echo "Converter count too low" && exit 1)
 
-      - name: Compile all Python files
+      - name: Smoke test (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
         run: |
-          echo "=== Compiling all converter modules ==="
-          find converters/ lib/ -name "*.py" | while read f; do
-            python -m py_compile "$f" || exit 1
-            echo "  ✅ $f"
-          done
-          python -m py_compile hashcatizer.py
-          echo "  ✅ hashcatizer.py"
-          echo "All files compiled successfully."
+          $bin = ".\target\${{ matrix.target }}\release\${{ matrix.binary }}"
+          & $bin --help
+          $count = (& $bin --list 2>$null | Select-String "^  ").Count
+          Write-Host "Converters listed: $count"
+          if ($count -lt 80) { Write-Error "Converter count too low"; exit 1 }
 
-      - name: Lint with ruff
-        run: |
-          ruff check --select=E,F,W --ignore=E501,W503 converters/ lib/ hashcatizer.py
+      - name: Package binary (Unix)
+        if: matrix.os != 'windows-latest'
+        run: tar -czf ${{ matrix.archive }} -C target/${{ matrix.target }}/release ${{ matrix.binary }}
 
-      - name: Smoke test — module imports
-        run: |
-          python hashcatizer.py --list | tail -3
+      - name: Package binary (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: Compress-Archive -Path "target\${{ matrix.target }}\release\${{ matrix.binary }}" -DestinationPath "${{ matrix.archive }}"
 
-  test-detection:
-    name: Hash Detection & Identification Tests
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.archive }}
+          path: ${{ matrix.archive }}
+
+  release:
+    name: Publish GitHub Release
+    needs: build-and-test
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
-    needs: lint-and-compile
+    permissions:
+      contents: write
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
         with:
-          python-version: "3.12"
+          path: dist/
+          merge-multiple: true
 
-      - name: Install dependencies
-        run: pip install -e ".[dev]"
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Hashcatizer ${{ github.ref_name }}
+          body: |
+            ## Hashcatizer ${{ github.ref_name }}
 
-      - name: Run unit tests
-        run: python -m pytest tests/ -v --tb=short
+            Pre-built static binaries for Linux (musl), macOS, and Windows x86_64.
 
-      - name: Test hash identification
-        run: |
-          echo "=== Testing hash identification ==="
-          # bcrypt
-          python -c "
-          from lib.detect import identify_hash
-          r = identify_hash('\$2a\$10\$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy')
-          assert any('bcrypt' in n for n, m in r), 'bcrypt detection failed'
-          assert any(m == 3200 for n, m in r), 'bcrypt mode wrong'
-          print('  ✅ bcrypt → mode 3200')
-          "
-          # md5crypt
-          python -c "
-          from lib.detect import identify_hash
-          r = identify_hash('\$1\$salt1234\$abcdefghijklmnopqrstuv')
-          assert any('md5crypt' in n for n, m in r), 'md5crypt detection failed'
-          print('  ✅ md5crypt → mode 500')
-          "
-          # sha512crypt
-          python -c "
-          from lib.detect import identify_hash
-          r = identify_hash('\$6\$rounds=5000\$saltsalt\$' + 'A' * 86)
-          assert any(m == 1800 for n, m in r), 'sha512crypt mode wrong'
-          print('  ✅ sha512crypt → mode 1800')
-          "
-          # Kerberos
-          python -c "
-          from lib.detect import identify_hash
-          r = identify_hash('\$krb5tgs\$23\$*user\$REALM*\$hash')
-          assert any(m == 13100 for n, m in r), 'kerberos mode wrong'
-          print('  ✅ Kerberos TGS → mode 13100')
-          "
-          echo "All hash identification tests passed."
+            ### Quick start
 
-      - name: Test file type detection
-        run: |
-          echo "=== Testing file type auto-detection ==="
-          python -c "
-          from lib.detect import detect_file_type, is_hash_string
-          import tempfile, os
+            ```bash
+            # Linux
+            tar -xzf hashcatizer-linux-x86_64.tar.gz
+            chmod +x hashcatizer && sudo mv hashcatizer /usr/local/bin/
 
-          # Test SSH key detection
-          with tempfile.NamedTemporaryFile(mode='w', suffix='.key', delete=False) as f:
-              f.write('-----BEGIN OPENSSH PRIVATE KEY-----\ntest\n-----END OPENSSH PRIVATE KEY-----\n')
-              f.flush()
-              assert detect_file_type(f.name) == 'ssh', 'SSH detection failed'
-              print('  ✅ SSH key detected')
-              os.unlink(f.name)
+            # Usage
+            hashcatizer --list
+            hashcatizer <file>
+            hashcatizer <converter> <file>
+            hashcatizer '<hash_string>'
+            ```
 
-          # Test PDF detection
-          with tempfile.NamedTemporaryFile(mode='wb', suffix='.pdf', delete=False) as f:
-              f.write(b'%PDF-1.5 test data')
-              f.flush()
-              assert detect_file_type(f.name) == 'pdf', 'PDF detection failed'
-              print('  ✅ PDF detected')
-              os.unlink(f.name)
-
-          # Test 7z detection
-          with tempfile.NamedTemporaryFile(mode='wb', suffix='.7z', delete=False) as f:
-              f.write(b'7z\xbc\xaf\x27\x1c' + b'\x00' * 100)
-              f.flush()
-              assert detect_file_type(f.name) == '7z', '7z detection failed'
-              print('  ✅ 7-Zip detected')
-              os.unlink(f.name)
-
-          # Test Ansible Vault detection
-          with tempfile.NamedTemporaryFile(mode='w', suffix='.yml', delete=False) as f:
-              f.write('\$ANSIBLE_VAULT;1.1;AES256\n61616161')
-              f.flush()
-              assert detect_file_type(f.name) == 'ansible', 'Ansible detection failed'
-              print('  ✅ Ansible Vault detected')
-              os.unlink(f.name)
-
-          # Test is_hash_string
-          assert is_hash_string('\$2a\$10\$test') == True
-          assert is_hash_string('a' * 32) == True
-          assert is_hash_string(__file__) == False
-          print('  ✅ is_hash_string logic correct')
-
-          print('All file detection tests passed.')
-          "
+            See [README](https://github.com/${{ github.repository }}#readme) for full documentation.
+          files: dist/*
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-') }}

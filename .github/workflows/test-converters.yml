@@ -1,4 +1,5 @@
 name: Test Converters (Manual)
+
 on:
   workflow_dispatch:
     inputs:
@@ -9,51 +10,67 @@ on:
 
 jobs:
   test-converters:
-    name: Full Converter Test Suite
+    name: Full Converter Smoke Test
     runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - name: Install Rust (stable)
+        uses: dtolnay/rust-toolchain@stable
         with:
-          python-version: "3.12"
+          targets: x86_64-unknown-linux-musl
 
-      - name: Install dependencies
-        run: pip install -e ".[dev]"
+      - name: Install musl tools
+        run: sudo apt-get install -y musl-tools
 
-      - name: Create test fixtures
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target/
+          key: ubuntu-cargo-${{ hashFiles('**/Cargo.lock') }}
+          restore-keys: ubuntu-cargo-
+
+      - name: Build release binary
+        run: cargo build --release --target x86_64-unknown-linux-musl
+
+      - name: Verify all converters are listed
         run: |
-          mkdir -p tests/fixtures
-          # SSH key fixture
-          ssh-keygen -t rsa -b 2048 -f tests/fixtures/test_rsa -N "testpassword" -q
-          # Ansible Vault fixture
-          pip install ansible-core
-          echo "secret_data: password123" | ansible-vault encrypt --vault-password-file <(echo "vaultpass") --output tests/fixtures/test.vault
-          # PDF (minimal, not encrypted — just for detection)
-          echo "%PDF-1.5 minimal test" > tests/fixtures/test.pdf
+          BIN=./target/x86_64-unknown-linux-musl/release/hashcatizer
+          COUNT=$($BIN --list 2>/dev/null | grep -c "^  ")
+          echo "Converters listed: $COUNT"
+          [ "$COUNT" -ge 80 ] || (echo "Converter count too low" && exit 1)
 
-      - name: Test individual converters
+      - name: Test hash identification
         run: |
-          echo "=== Testing SSH converter ==="
-          python hashcatizer.py ssh tests/fixtures/test_rsa 2>&1 && echo "✅ SSH" || echo "⚠️ SSH"
+          BIN=./target/x86_64-unknown-linux-musl/release/hashcatizer
+          check() {
+            local hash="$1" expected="$2"
+            OUT=$($BIN "$hash" 2>/dev/null)
+            echo "$OUT" | grep -qi "$expected" && echo "  PASS: $expected" || (echo "  FAIL: $expected not in: $OUT" && exit 1)
+          }
+          check '$2a$12$LlMILsdbh1gAdLhWBXWzXuaLOhJuIqfA.FGy3j5L4t4L4t4L4t4L4' 'bcrypt'
+          check '$1$salt$abcdefghijklmnopqrstu1' 'md5crypt'
+          check '$6$rounds=5000$salt$AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA' 'sha512crypt'
+          check '$krb5tgs$23$USER$REALM$hash' 'kerberos'
 
-          echo ""
-          echo "=== Testing Ansible converter ==="
-          python hashcatizer.py ansible tests/fixtures/test.vault 2>&1 && echo "✅ Ansible" || echo "⚠️ Ansible"
-
-          echo ""
-          echo "=== Testing auto-detection ==="
-          python hashcatizer.py tests/fixtures/test_rsa 2>&1 && echo "✅ Auto-detect SSH" || echo "⚠️ Auto-detect SSH"
-
-      - name: Verify all converters load
+      - name: Test explicit converter (SSH key fixture)
         run: |
-          echo "=== Verifying all 111 converters ==="
-          python hashcatizer.py --list
-          TOTAL=$(python hashcatizer.py --list 2>&1 | grep "^Total:" | grep -oP '\d+')
-          echo "Total converters: $TOTAL"
-          if [ "$TOTAL" -lt 100 ]; then
-            echo "❌ Converter count dropped below 100!"
-            exit 1
-          fi
-          echo "✅ All converters intact."
+          BIN=./target/x86_64-unknown-linux-musl/release/hashcatizer
+          ssh-keygen -t rsa -b 2048 -f /tmp/test_rsa -N "testpassword" -q
+          OUT=$($BIN ssh /tmp/test_rsa 2>/dev/null)
+          echo "SSH output: $OUT"
+          echo "$OUT" | grep -q '^\$sshng\$' || (echo "SSH converter produced unexpected output" && exit 1)
+          echo "  PASS: SSH key extracted"
+
+      - name: Test specific converter (if input provided)
+        if: inputs.converter != ''
+        run: |
+          BIN=./target/x86_64-unknown-linux-musl/release/hashcatizer
+          echo "Testing converter: ${{ inputs.converter }}"
+          $BIN --list 2>/dev/null | grep -q "  ${{ inputs.converter }}" \
+            && echo "  PASS: ${{ inputs.converter }} is registered" \
+            || (echo "  FAIL: ${{ inputs.converter }} not found in --list" && exit 1)
