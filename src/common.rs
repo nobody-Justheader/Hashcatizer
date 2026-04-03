@@ -8,6 +8,7 @@ pub fn to_hex(data: &[u8]) -> String {
 
 /// Decode a hex string to bytes.
 #[inline]
+#[allow(dead_code)]
 pub fn from_hex(s: &str) -> Result<Vec<u8>, String> {
     hex::decode(s).map_err(|e| e.to_string())
 }
@@ -44,6 +45,7 @@ pub fn u64_le(data: &[u8], offset: usize) -> u64 {
 
 /// Read a little-endian i64 from `data` at `offset`.
 #[inline]
+#[allow(dead_code)]
 pub fn i64_le(data: &[u8], offset: usize) -> i64 {
     i64::from_le_bytes(data[offset..offset + 8].try_into().unwrap())
 }
@@ -79,6 +81,7 @@ pub fn b64_encode(data: &[u8]) -> String {
 }
 
 /// Read a 4-byte big-endian length-prefixed byte string.
+#[allow(dead_code)]
 pub fn read_be_blob<'a>(data: &'a [u8], offset: usize) -> Option<(&'a [u8], usize)> {
     if offset + 4 > data.len() {
         return None;

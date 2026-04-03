@@ -1,4 +1,4 @@
-use crate::common::{to_hex, u32_le, u16_le};
+use crate::common::{to_hex, u32_le};
 
 const MAGIC: &[u8] = b"\xd0\xb5\xb1\xc4";
 

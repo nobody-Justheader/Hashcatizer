@@ -63,7 +63,7 @@ fn parse_openssh(text: &str) -> Option<Vec<String>> {
     off = off4;
 
     let (cipher_id, salt, rounds) = if kdf_name == "bcrypt" && kdf_len >= 20 {
-        let (salt_raw, off5) = read_len_bytes(&raw, off)?;
+        let (salt_raw, _off5) = read_len_bytes(&raw, off)?;
         let (rnd, _off6)     = read_u32_be(&raw, off + 4 + salt_raw.len())?;
         let cid = match cipher_name.as_str() {
             "aes256-cbc" => 2,

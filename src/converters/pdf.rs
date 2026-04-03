@@ -14,7 +14,7 @@ pub fn convert(data: &[u8], _filename: &str) -> Option<Vec<String>> {
     let p   = get_pdf_int_signed(enc_obj, "/P")?;
     let key_len = get_pdf_int(enc_obj, "/Length").unwrap_or(if v >= 3 { 128 } else { 40 });
     let u_hex = get_pdf_hex_or_string(enc_obj, "/U")?;
-    let o_hex = get_pdf_hex_or_string(enc_obj, "/O")?;
+    let _o_hex = get_pdf_hex_or_string(enc_obj, "/O")?;
     let enc_meta = if enc_obj.contains("/EncryptMetadata false") { 0 } else { 1 };
 
     Some(vec![format!(

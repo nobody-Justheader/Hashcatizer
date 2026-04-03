@@ -358,6 +358,7 @@ pub fn identify_hash(hash: &str) -> Vec<(&'static str, u32)> {
 }
 
 /// Returns true if the string looks more like a hash than a filename.
+#[allow(dead_code)]
 pub fn is_hash_string(s: &str) -> bool {
     // All hex
     if s.len() >= 32 && s.chars().all(|c| c.is_ascii_hexdigit()) {

@@ -1,5 +1,3 @@
-use crate::common::to_hex;
-
 pub fn convert(data: &[u8], _f: &str) -> Option<Vec<String>> {
     let text = std::str::from_utf8(data).ok()?;
     let v: serde_json::Value = serde_json::from_str(text).ok()?;

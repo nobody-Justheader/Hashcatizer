@@ -1,4 +1,4 @@
-use crate::common::{to_hex, u32_le, u16_le};
+use crate::common::{to_hex, u32_le};
 
 pub fn convert(data: &[u8], _filename: &str) -> Option<Vec<String>> {
     // Scan for RESU + MMYS
