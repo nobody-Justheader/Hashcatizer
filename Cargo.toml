@@ -34,7 +34,7 @@ depends = ""
 section = "utils"
 priority = "optional"
 assets = [
-    ["target/x86_64-unknown-linux-musl/release/hashcatizer", "usr/bin/hashcatizer", "755"],
+    ["target/release/hashcatizer", "usr/bin/hashcatizer", "755"],
     ["README.md", "usr/share/doc/hashcatizer/README.md", "644"],
     ["LICENSE", "usr/share/doc/hashcatizer/copyright", "644"],
 ]
