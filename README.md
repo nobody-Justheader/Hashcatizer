@@ -30,7 +30,7 @@ Download the latest release for your platform from the [Releases page](../../rel
 
 ```bash
 # Linux (musl static binary)
-curl -Lo hashcatizer https://github.com/nobody-Justheader/Hashcatizer/releases/latest/download/hashcatizer-linux-x86_64.tar.gz
+curl -Lo hashcatizer-linux-x86_64.tar.gz https://github.com/nobody-Justheader/Hashcatizer/releases/latest/download/hashcatizer-linux-x86_64.tar.gz
 tar -xzf hashcatizer-linux-x86_64.tar.gz
 chmod +x hashcatizer
 sudo mv hashcatizer /usr/local/bin/
@@ -61,7 +61,7 @@ hashcatizer <converter> <file>
 # Identify a raw hash string
 hashcatizer '<hash_string>'
 
-# List all 90 converters with hashcat mode info
+# List all converters with hashcat mode info
 hashcatizer --list
 ```
 
@@ -179,9 +179,6 @@ hashcatizer '$2a$12$LlMILsdbh1gAdLhWBXWzXu...'
 | `prosody` | — | Prosody XMPP SCRAM hashes |
 | `radius` | — | RADIUS hashes |
 | `sipdump` | — | SIP digest auth |
-| `atmail` | — | Atmail hashes |
-| `ldif` | — | LDAP LDIF |
-| `network` | — | Generic network hashes |
 
 ---
 
@@ -192,11 +189,6 @@ MIT — see [LICENSE](LICENSE).
 ## Credits
 
 Inspired by the `*2john` scripts from [openwall/john](https://github.com/openwall/john), built to complement [hashcat](https://github.com/hashcat/hashcat) by **Jens "atom" Steube**. See [CREDITS.md](CREDITS.md) for full attribution.
-
-
----
-
-## Supported Formats (111 Converters)
 
 | Converter | Hashcat Mode(s) | Description |
 |---|---|---|
